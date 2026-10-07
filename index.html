@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cäsar-Verschlüsselung ausprobieren</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#1d2433;--mute:#5d667a;--line:#cfd5e3;--acc:#3b5bdb;--accbg:#e7ecff;--hl:#ffe8a3;--w:30px;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171f;--card:#1e2330;--ink:#e8ebf3;--mute:#9aa3b8;--line:#3a4256;--acc:#8ea5ff;--accbg:#27304f;--hl:#5c4a12}}
+:root[data-theme="dark"]{--bg:#14171f;--card:#1e2330;--ink:#e8ebf3;--mute:#9aa3b8;--line:#3a4256;--acc:#8ea5ff;--accbg:#27304f;--hl:#5c4a12}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:1.6rem;margin:.2em 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:16px 0}
+.hint{color:var(--mute);margin:.2em 0 .8em}
+.scroll{overflow-x:auto;padding:4px 0}
+.wheel{width:calc(var(--w)*26);margin:0 auto}
+.lab{font-size:.8rem;color:var(--mute);margin:6px 0 2px;position:sticky;left:0}
+.strip{display:flex;width:calc(var(--w)*26);overflow:hidden;border:2px solid var(--acc);border-radius:8px}
+.strip.b{background:var(--accbg)}
+.inner{display:flex;transition:transform .35s ease}
+.c{width:var(--w);flex:none;text-align:center;font:700 1.05rem/2.1rem ui-monospace,Menlo,Consolas,monospace}
+.c.h{background:var(--hl)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.btn{border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--acc);color:var(--card)}
+.btn.sec{background:transparent;border:2px solid var(--line);color:var(--ink)}
+.btn.on{outline:3px solid var(--hl)}
+input[type=range]{flex:1;min-width:160px}
+.num{font-size:1.3rem;font-weight:700;min-width:2ch;text-align:center}
+textarea{width:100%;box-sizing:border-box;min-height:80px;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:1.1rem ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+.out{background:var(--accbg);border-color:var(--acc)}
+.key{font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>🏛️ Cäsar-Verschlüsselung ausprobieren</h1>
+<p class="hint">Schiebe das untere Alphabet nach links oder rechts. Jeder Buchstabe oben wird durch den Buchstaben darunter ersetzt.</p>
+
+<section class="card">
+<div class="scroll"><div class="wheel">
+  <div class="lab">Klartext-Alphabet (fest)</div>
+  <div class="strip" id="top"></div>
+  <div class="lab">Geheimtext-Alphabet (verschiebbar)</div>
+  <div class="strip b"><div class="inner" id="bot"></div></div>
+</div></div>
+<div class="row">
+  <button class="btn sec" id="left" aria-label="Nach links schieben">◀</button>
+  <input type="range" id="rng" min="0" max="25" value="3" aria-label="Verschiebung">
+  <button class="btn sec" id="right" aria-label="Nach rechts schieben">▶</button>
+  <span>Verschiebung (Schlüssel): <span class="num" id="num">3</span></span>
+</div>
+<div class="key" id="key"></div>
+</section>
+
+<section class="card">
+<div class="row">
+  <button class="btn on" id="mEnc">Verschlüsseln</button>
+  <button class="btn sec" id="mDec">Entschlüsseln</button>
+</div>
+<label for="inp" class="lab" id="inLab"></label>
+<textarea id="inp" placeholder="Text hier eingeben …">HALLO</textarea>
+<div class="row"><button class="btn sec" id="swap">⇅ Ergebnis als neue Eingabe nutzen</button></div>
+<label for="res" class="lab" id="outLab"></label>
+<textarea id="res" class="out" readonly></textarea>
+<p class="hint">Hinweis: Eingaben werden in Großbuchstaben umgewandelt (Ä→AE, Ö→OE, Ü→UE, ß→SS). Zahlen, Leerzeichen und Satzzeichen bleiben unverändert.</p>
+</section>
+</main>
+
+<script>
+const A="ABCDEFGHIJKLMNOPQRSTUVWXYZ",W=30;
+let shift=3,enc=true;
+const $=id=>document.getElementById(id);
+const top_=$('top'),bot=$('bot');
+for(let i=0;i<26;i++){const d=document.createElement('div');d.className='c';d.textContent=A[i];top_.appendChild(d)}
+for(let k=0;k<78;k++){const d=document.createElement('div');d.className='c';d.textContent=A[k%26];bot.appendChild(d)}
+const norm=s=>s.toUpperCase().replace(/Ä/g,'AE').replace(/Ö/g,'OE').replace(/Ü/g,'UE').replace(/ß/g,'SS');
+function conv(s,sh){return norm(s).replace(/[A-Z]/g,ch=>A[(A.indexOf(ch)+sh+26)%26])}
+function update(){
+  const w=top_.firstChild.getBoundingClientRect().width||W;
+  bot.style.transform=`translateX(${-(26+shift)*w}px)`;
+  $('num').textContent=shift;$('rng').value=shift;
+  $('key').textContent=`Mit diesem Schlüssel wird A zu ${A[shift]}, B zu ${A[(1+shift)%26]}, C zu ${A[(2+shift)%26]} …`;
+  $('inLab').textContent=enc?'Klartext eingeben:':'Geheimtext eingeben:';
+  $('outLab').textContent=enc?'Geheimtext (Ergebnis):':'Klartext (Ergebnis):';
+  $('res').value=conv($('inp').value,enc?shift:-shift);
+  $('mEnc').className='btn'+(enc?' on':' sec');$('mDec').className='btn'+(enc?' sec':' on');
+  highlight();
+}
+function highlight(){
+  const used=new Set(norm($('inp').value).replace(/[^A-Z]/g,''));
+  const topH=new Array(26).fill(false);
+  [...bot.children].forEach((c,k)=>{
+    const col=k-(26+shift),inView=col>=0&&col<26;
+    let h=false;
+    if(inView){h=enc?used.has(A[col]):used.has(A[k%26]);if(h)topH[col]=true}
+    c.classList.toggle('h',h);
+  });
+  [...top_.children].forEach((c,i)=>c.classList.toggle('h',topH[i]));
+}
+$('rng').oninput=e=>{shift=+e.target.value;update()};
+$('left').onclick=()=>{shift=(shift+25)%26;update()};
+$('right').onclick=()=>{shift=(shift+1)%26;update()};
+$('inp').oninput=update;
+$('mEnc').onclick=()=>{enc=true;update()};
+$('mDec').onclick=()=>{enc=false;update()};
+$('swap').onclick=()=>{$('inp').value=$('res').value;enc=!enc;update()};
+addEventListener('resize',update);
+update();
+</script>
+</body>
+</html>
